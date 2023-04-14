@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "FileSplitter.Console": {
+      "commandName": "Project",
+      "commandLineArgs": "-f file -p 123 -c -b -n nils"
+    }
+  }
+}

@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using FileSplitterDemo.Splitters;
+using mystiqu.tools.files.splitters;
 using BenchmarkDotNet.Running;
 
 namespace FileSplitterDemo.Benchmarks

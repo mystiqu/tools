@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\FileSplitter\FileSplitterDemo.csproj" />
+    <ProjectReference Include="..\FileSplitter\filesplitter.csproj" />
   </ItemGroup>
 
 </Project>
