@@ -117,5 +117,33 @@ namespace console.input
             return String.Empty;
         }
 
+        public string GetHelpText()
+        {
+            string helpText = string.Empty;
+
+            helpText = Environment.NewLine + _inputSchema.Description;
+            helpText += Environment.NewLine + Environment.NewLine;
+            string commandText = string.Empty;
+
+            foreach(InputProperty prop in _inputSchema.Properties)
+            {
+                commandText = "  " + _inputSchema.PropertyPrefix + prop.Key;
+                commandText += ": " + prop.HelpText;
+                helpText += commandText + Environment.NewLine;
+            }
+
+            return helpText;
+        }
+
+        public string GetHelpText(string key)
+        {
+            string internalKey = key;
+            if (key.StartsWith(_inputSchema.PropertyPrefix))
+                internalKey = key.TrimStart(_inputSchema.PropertyPrefix);
+
+            return "";
+            //if(_inputSchema.Properties.Where(x => x.Key.Equals(internalKey))
+        }
+
     }
 }

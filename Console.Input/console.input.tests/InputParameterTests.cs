@@ -20,6 +20,21 @@ namespace console.input.tests
         }
 
         [Test]
+        public void GetHelpText()
+        {
+            InputSchema inputSchema = new InputSchema();
+            inputSchema.PropertyPrefix = '-';
+            inputSchema.Description = "this is a schema";
+            inputSchema.Properties.Add(new InputProperty() { Key = "f", Type = PROPERTY_TYPE.KEY_VALUE, HelpText = "File path"});
+            inputSchema.Properties.Add(new InputProperty() { Key = "p", Type = PROPERTY_TYPE.KEY_VALUE, HelpText = "Port number, 1-65536" });
+            inputSchema.Properties.Add(new InputProperty() { Key = "noval", Type = PROPERTY_TYPE.KEY_ONLY, HelpText = "Some value"});
+            inputSchema.Properties.Add(new InputProperty() { Key = "anothernoval", Type = PROPERTY_TYPE.KEY_ONLY, HelpText = "Yet another value" });
+
+            InputParameterParser parser = new InputParameterParser(inputSchema, "-f", "file", "-p", "123", "-noval");
+            string t = parser.GetHelpText();
+        }
+
+        [Test]
         public void Parse_Standard_Input_Parameter_String()
         {
             InputSchema inputSchema = new InputSchema();

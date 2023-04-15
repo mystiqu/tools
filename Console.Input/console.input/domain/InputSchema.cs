@@ -49,12 +49,14 @@ namespace console.input.domain
 
         public bool Required { get; set; }
         
+        public string HelpText { get; set;
+        }
         public InputProperty()
         {
             Key = "";
             Type = PROPERTY_TYPE.UNKOWN;
             Required = false;
-            
+            HelpText = "";
         }
     }
 }
