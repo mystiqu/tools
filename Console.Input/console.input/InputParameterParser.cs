@@ -2,6 +2,9 @@
 
 namespace console.input
 {
+    /// <summary>
+    /// Class that parses input parameters and (optionally) validates them against a supplied schema
+    /// </summary>
     public class InputParameterParser
     {
         public List<KeyValuePair<string, string>> Parameters { get; set; }
@@ -9,6 +12,11 @@ namespace console.input
         private InputSchema _inputSchema;
         public string ValidatonError { get; set; }
         public bool IsValid { get; set; }
+
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="inputParemeters">The input parameters, usually the args string list from a console application</param>
         public InputParameterParser(params string[] inputParemeters)
         {
             Parameters = new List<KeyValuePair<string, string>>();
@@ -18,11 +26,20 @@ namespace console.input
             _inputSchema = new InputSchema();
         }
 
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        /// <param name="parameterSchema">The parameter schema that defines which parameters are available, their usage and type</param>
+        /// <param name="inputParemeters">The input parameters, usually the args string list from a console application</param>
+
         public InputParameterParser(InputSchema parameterSchema, params string[] inputParemeters) : this(inputParemeters)
         {
             _inputSchema = parameterSchema;
         }
 
+        /// <summary>
+        /// Parses the parameters and (optionally) validates against the schema
+        /// </summary>
         public void Parse()
         {
             KeyValuePair<string, string> current;
@@ -44,6 +61,10 @@ namespace console.input
                 IsValid = Validate();
         }
 
+        /// <summary>
+        /// Validates the properties against the schema. Use only of schema is used
+        /// </summary>
+        /// <returns>true | false depending on the result</returns>
         private bool Validate()
         {
             foreach(KeyValuePair<string,string> inputVal in Parameters)
@@ -86,6 +107,11 @@ namespace console.input
             return true;
         }
 
+        /// <summary>
+        /// Get a specific property (e.g. -f) based on the key name. Supports with/without parameter prefix
+        /// </summary>
+        /// <param name="key">The key, e,g, -f or just f</param>
+        /// <returns>KeyValuePair representing the property</returns>
         public KeyValuePair<string,string> GetProperty(string key)
         {
             string internalKey = key;
@@ -95,6 +121,11 @@ namespace console.input
             return Parameters.Where(x => x.Key.Equals(internalKey)).FirstOrDefault();
         }
 
+        /// <summary>
+        /// Get a property value based on the key, e.g. -f or just f
+        /// </summary>
+        /// <param name="key">The key, e,g, -f or just f</param>
+        /// <returns>The value</returns>
         public string GetPropertyValue(string key)
         {
             string internalKey = key;
@@ -108,6 +139,12 @@ namespace console.input
             return String.Empty;
         }
 
+        /// <summary>
+        /// The a specific property/definition from the schema
+        /// </summary>
+        /// <param name="key">The key to fetch the definition for</param>
+        /// <returns>InputProperty instance</returns>
+        /// <exception cref="Exception"></exception>
         private InputProperty GetSchemaProperty(string key)
         {
             IEnumerable<InputProperty> res = _inputSchema.Properties.Where(x => x.Key.Equals(key));
@@ -120,8 +157,15 @@ namespace console.input
                 throw new Exception($"No schema definition found for input parameter: '{key}'");
         }
 
+        /// <summary>
+        /// Returns the help text for all parameters defined in the schema.
+        /// </summary>
+        /// <returns></returns>
         public string GetHelpText()
         {
+            if (_inputSchema.DefaultSchema)
+                return "No schema defined for input parameters";
+
             string helpText = string.Empty;
 
             helpText = Environment.NewLine + _inputSchema.Description;
@@ -138,8 +182,16 @@ namespace console.input
             return helpText;
         }
 
+        /// <summary>
+        /// Get the help text for a specific parameter
+        /// </summary>
+        /// <param name="key">Key name, e.g. -f or just f</param>
+        /// <returns>The help text</returns>
         public string GetHelpText(string key)
         {
+            if (_inputSchema.DefaultSchema)
+                return "No schema defined for input parameters";
+
             string internalKey = key;
             string commandText = string.Empty;
 

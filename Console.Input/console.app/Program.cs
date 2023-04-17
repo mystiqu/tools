@@ -6,6 +6,10 @@ internal class Program
     private static InputParameterParser _parser = null;
     private static bool _verbose = false;
 
+    /// <summary>
+    /// This app uses the InputParameterParser and InputSchema classes to show how they can be used in a real implementation
+    /// </summary>
+    /// <param name="args"></param>
     private static void Main(string[] args)
     {
         args = new string[] { "-f","testfile.txt", "-v", "-r", "txt" };
@@ -52,6 +56,11 @@ internal class Program
 
     }
 
+    /// <summary>
+    /// Read file size
+    /// </summary>
+    /// <param name="args">All arguments from the console input</param>
+    /// <exception cref="ArgumentException"></exception>
     private static void ReadFile(string[] args)
     {
         _parser.Parse();
@@ -100,6 +109,11 @@ internal class Program
         Console.WriteLine($"[INFO] '{fileName}' has the total size of {size.ToString()} bytes");
     }
 
+    /// <summary>
+    /// Concats all the input params to be able to print them nicely
+    /// </summary>
+    /// <param name="args">Console input arguments</param>
+    /// <returns>The concatenated string</returns>
     private static string GetParams(string[] args)
     {
         string completeParamLine = "";
@@ -123,6 +137,12 @@ internal class Program
         return _parser;
     }
 
+    /// <summary>
+    /// Validates the file extension against the supplied list of allows extensions
+    /// </summary>
+    /// <param name="fileName">The filename</param>
+    /// <param name="fileExtensions">The allowed file extensions</param>
+    /// <returns></returns>
     private static bool validateFileExtension(string fileName, string fileExtensions)
     {
         string fileExt = fileName.Substring(fileName.LastIndexOf(".") + 1);
@@ -133,6 +153,11 @@ internal class Program
         return fileExtensions.Contains(fileExt);
     }
 
+    /// <summary>
+    /// Get the file size in bytes from a file
+    /// </summary>
+    /// <param name="fileName">The filename</param>
+    /// <returns>The size in bytes</returns>
     private static long GetFileSize(string fileName)
     {
         FileInfo fileInfo = new FileInfo(fileName);
