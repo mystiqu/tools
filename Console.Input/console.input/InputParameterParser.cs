@@ -138,11 +138,21 @@ namespace console.input
         public string GetHelpText(string key)
         {
             string internalKey = key;
+            string commandText = string.Empty;
+
             if (key.StartsWith(_inputSchema.PropertyPrefix))
                 internalKey = key.TrimStart(_inputSchema.PropertyPrefix);
 
-            return "";
-            //if(_inputSchema.Properties.Where(x => x.Key.Equals(internalKey))
+            IEnumerable<InputProperty> props = _inputSchema.Properties.Where(x => x.Key.Equals(internalKey));
+            if (props.Any())
+            {
+                commandText = "  " + _inputSchema.PropertyPrefix + props.First().Key;
+                commandText += ": " + props.First().HelpText;
+
+                return commandText;
+            }
+
+            return $"Could not find a help text for key '{_inputSchema.PropertyPrefix}{key}'.";  
         }
 
     }

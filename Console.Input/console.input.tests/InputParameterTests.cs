@@ -20,7 +20,7 @@ namespace console.input.tests
         }
 
         [Test]
-        public void GetHelpText()
+        public void Get_Help_Text_Complete()
         {
             InputSchema inputSchema = new InputSchema();
             inputSchema.PropertyPrefix = '-';
@@ -32,6 +32,25 @@ namespace console.input.tests
 
             InputParameterParser parser = new InputParameterParser(inputSchema, "-f", "file", "-p", "123", "-noval");
             string t = parser.GetHelpText();
+            Assert.IsTrue(t.Contains("-f"));
+            Assert.IsTrue(t.Contains("-p"));
+            Assert.IsTrue(t.Contains("-noval"));
+        }
+
+        [Test]
+        public void Get_Help_Text_Property()
+        {
+            InputSchema inputSchema = new InputSchema();
+            inputSchema.PropertyPrefix = '-';
+            inputSchema.Description = "this is a schema";
+            inputSchema.Properties.Add(new InputProperty() { Key = "f", Type = PROPERTY_TYPE.KEY_VALUE, HelpText = "File path" });
+            inputSchema.Properties.Add(new InputProperty() { Key = "p", Type = PROPERTY_TYPE.KEY_VALUE, HelpText = "Port number, 1-65536" });
+            inputSchema.Properties.Add(new InputProperty() { Key = "noval", Type = PROPERTY_TYPE.KEY_ONLY, HelpText = "Some value" });
+            inputSchema.Properties.Add(new InputProperty() { Key = "anothernoval", Type = PROPERTY_TYPE.KEY_ONLY, HelpText = "Yet another value" });
+
+            InputParameterParser parser = new InputParameterParser(inputSchema, "-f", "file", "-p", "Port number", "-noval");
+            string t = parser.GetHelpText("-p");
+            Assert.IsTrue(t.Contains("Port number, 1-65536"));
         }
 
         [Test]
