@@ -88,12 +88,20 @@ namespace console.input
 
         public KeyValuePair<string,string> GetProperty(string key)
         {
-            return Parameters.Where(x => x.Key.Equals(key)).FirstOrDefault();
+            string internalKey = key;
+            if (internalKey.StartsWith(_inputSchema.PropertyPrefix))
+                internalKey = key.TrimStart(_inputSchema.PropertyPrefix);
+
+            return Parameters.Where(x => x.Key.Equals(internalKey)).FirstOrDefault();
         }
 
         public string GetPropertyValue(string key)
         {
-            IEnumerable<KeyValuePair<string, string>> res = Parameters.Where(x => x.Key.Equals(key));
+            string internalKey = key;
+            if (internalKey.StartsWith(_inputSchema.PropertyPrefix))
+                internalKey = key.TrimStart(_inputSchema.PropertyPrefix);
+
+            IEnumerable<KeyValuePair<string, string>> res = Parameters.Where(x => x.Key.Equals(internalKey));
             if(res.Any())  
                 return res.First().Value;
 
@@ -110,11 +118,6 @@ namespace console.input
 
             else
                 throw new Exception($"No schema definition found for input parameter: '{key}'");
-        }
-
-        public string GetValue(string key)
-        {
-            return String.Empty;
         }
 
         public string GetHelpText()
