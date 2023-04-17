@@ -12,6 +12,13 @@ internal class Program
     /// <param name="args"></param>
     private static void Main(string[] args)
     {
+        /*
+            console.app is an application for loading generic files and calculating the size.
+
+              -f: File path
+              -r: Restrict to only these file extensions, comma separated string (sql,txt,cs,pdf etc)
+              -v: Verbose logging
+        */
         args = new string[] { "-f","testfile.txt", "-v", "-r", "txt" };
 
         _parser = DefineInputSchema(args);
@@ -130,7 +137,6 @@ internal class Program
         inputSchema.Properties.Add(new InputProperty() { Key = "f", Type = PROPERTY_TYPE.KEY_VALUE, Required = true, HelpText = "Path to file" });
         inputSchema.Properties.Add(new InputProperty() { Key = "r", Type = PROPERTY_TYPE.KEY_VALUE, Required = false, HelpText = "Restrict to only these file extensions, comma separated string (sql,txt,cs,pdf etc)" });
         inputSchema.Properties.Add(new InputProperty() { Key = "v", Type = PROPERTY_TYPE.KEY_ONLY, Required = false, HelpText = "Verbose - extra logging" });
-        inputSchema.Properties.Add(new InputProperty() { Key = "anothernoval", Type = PROPERTY_TYPE.KEY_ONLY });
 
         _parser = new InputParameterParser(inputSchema, args);
 
