@@ -61,6 +61,20 @@ internal class Program
             Console.WriteLine(ex.Message);
         }
 
+        Console.WriteLine("----------------------------------------------" + Environment.NewLine);
+
+        try
+        {
+            args = new string[] {"-f" };
+            Console.WriteLine($"Complete param line: '{GetParams(args)}'");
+            _parser = DefineInputSchema(args);
+            ReadFile(args);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
+
     }
 
     /// <summary>
