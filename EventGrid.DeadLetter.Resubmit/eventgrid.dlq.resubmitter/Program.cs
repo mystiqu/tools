@@ -57,6 +57,33 @@ internal class EventGridDLQProcessor
         Console.WriteLine("");
     }
 
+    private void WriteText(string text, bool newLine)
+    {
+        Console.Write(text + (newLine == true ? Environment.NewLine : ""));
+    }
+
+    public static bool ReadSingleKeyQuestion(string question, string retryText, ConsoleKeyInfo defaultValue, ConsoleKeyInfo trueKey, ConsoleKeyInfo falseKey, ConsoleKeyInfo startValue)
+    {
+        Console.Write(question);
+        ConsoleKeyInfo consoleKeyInfo = startValue;
+
+        consoleKeyInfo = Console.ReadKey(false);
+        Console.WriteLine();
+
+        while ((consoleKeyInfo.Key != trueKey.Key && consoleKeyInfo.Key != falseKey.Key && consoleKeyInfo.Key != defaultValue.Key))
+        {
+            Console.WriteLine("");
+            Console.Write(retryText);
+            consoleKeyInfo = Console.ReadKey(false);
+            Console.WriteLine();
+        }
+
+        if (consoleKeyInfo.Key == ConsoleKey.Y || consoleKeyInfo.Key == ConsoleKey.Enter)
+            return true;
+        else
+            return false;
+    }
+
     private static void Main(string[] args)
     {
         List<EventGridDeadLetterEvent> deadLetterEvents = new List<EventGridDeadLetterEvent>();
@@ -67,32 +94,18 @@ internal class EventGridDLQProcessor
         Welcome();
 
         Console.WriteLine("Looking for dead-letter events in  '{0}/{1}/{2}'", _blobContainerClient.AccountName, _storageContainer, GeneratePrefix());
-        Console.Write("Pause before each operation (download, publish, delete) and ask for permission to continue? [Y/N] (default is Y): ");
-        ConsoleKeyInfo consoleKeyInfo = new ConsoleKeyInfo('A', ConsoleKey.A, false, false, false);
 
-        consoleKeyInfo = Console.ReadKey(false);
-        Console.WriteLine();
-        while ((consoleKeyInfo.Key != ConsoleKey.Y && consoleKeyInfo.Key != ConsoleKey.N && consoleKeyInfo.Key != ConsoleKey.Enter))
-        {
-            Console.WriteLine("");
-            Console.Write("Invalid option, try again [Y/N]: ");
-            consoleKeyInfo = Console.ReadKey(false);
-            Console.WriteLine();
-        }
+        pauseForPermission = ReadSingleKeyQuestion("Pause before each operation (download, publish, delete) and ask for permission to continue? [Y/N] (default is Y): ",
+                                                   "Invalid option, try again [Y/N]: ",
+                                                   new ConsoleKeyInfo((char)13, ConsoleKey.Enter, false, false, false),
+                                                   new ConsoleKeyInfo('Y', ConsoleKey.Y, false, false, false),
+                                                   new ConsoleKeyInfo('N', ConsoleKey.N, false, false, false),
+                                                   new ConsoleKeyInfo('A', ConsoleKey.A, false, false, false));
 
-        if (consoleKeyInfo.Key == ConsoleKey.Y || consoleKeyInfo.Key == ConsoleKey.Enter)
-        {
-            Console.WriteLine("Ask for permission is selected");
-            Console.WriteLine();
-            pauseForPermission = true;
-        }
-            
+        if (pauseForPermission)
+            Console.WriteLine("Ask for permission is selected" + Environment.NewLine);
         else
-        {
-            Console.WriteLine("Skip asking for permission, the process will iterate through all blobs without asking");
-            Console.WriteLine();
-            pauseForPermission = false;
-        }
+            Console.WriteLine("Skip asking for permission, the process will iterate through all blobs without asking" + Environment.NewLine);
             
         AskForPermission("Press any key to start downloading events", pauseForPermission);
 
@@ -133,8 +146,6 @@ internal class EventGridDLQProcessor
                     {
                         continue;
                     }
-
-
                 }
             }
 
@@ -143,9 +154,8 @@ internal class EventGridDLQProcessor
 
             foreach (EventGridDeadLetterEvent evt in deadLetterEvents)
             {
-
                 Console.WriteLine("Publishing {0}, {1}... ", evt.Subject, evt.Id);
-                Azure.Messaging.CloudEvent ce = GetCloudEvent(evt);
+                Azure.Messaging.CloudEvent ce = GetCloudEvent(evt, false).Result;
 
                 Response t = eventGridPublisherClient.SendEvent(ce);
                 if (t.IsError)
@@ -192,14 +202,11 @@ internal class EventGridDLQProcessor
         }
     }
 
-    private static Azure.Messaging.CloudEvent GetCloudEvent(EventGridDeadLetterEvent evt)
+    private static async Task<Azure.Messaging.CloudEvent> GetCloudEvent(EventGridDeadLetterEvent evt, bool saveCopyToDisk, string localFolder = $"c:\\temp\\cloudevents")
     {
         string data = ((JsonNode)evt.Data).ToJsonString();
-        byte[] bData = System.Text.Encoding.UTF8.GetBytes(data);
-
-        FileStream str = System.IO.File.Create($"c:\\temp\\ce\\{evt.Id}.json");
-        str.Write(bData, 0, bData.Length);
-        str.Close();
+        if (saveCopyToDisk)
+            await SaveCloudEventToDisk(data, localFolder, evt.Id);
 
         Azure.Messaging.CloudEvent ce = new Azure.Messaging.CloudEvent(evt.Source, evt.Type, evt.Data);
         ce.DataSchema = "";
@@ -209,6 +216,17 @@ internal class EventGridDLQProcessor
         ce.Time = DateTime.Parse(evt.Time);
 
         return ce;
+    }
+
+    private static async Task SaveCloudEventToDisk(string data, string folder, string fileName)
+    {
+        byte[] bData = System.Text.Encoding.UTF8.GetBytes(data);
+        if(!System.IO.Directory.Exists(folder)) 
+            System.IO.Directory.CreateDirectory(folder);
+
+        FileStream str = System.IO.File.Create(folder.TrimEnd('\\') + $"\\{fileName}.json");
+        await str.WriteAsync(bData, 0, bData.Length);
+        str.Close();
     }
 
     private static string GeneratePrefix()
