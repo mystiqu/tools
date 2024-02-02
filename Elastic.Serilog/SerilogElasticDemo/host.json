@@ -1,0 +1,15 @@
+{
+  "version": "2.0",
+  "logging": {
+    "fileLoggingMode": "always",
+    "logLevel": {
+      "default": "Warning",                    //This seem to be overridden by builder.SetMinimumLevel(...);  
+      "Host.Results": "Warning",
+      //"Function": "Trace",                  //This does not seem to work
+      //"Function.AIDemo": "Warning",           //This overrides the startup line
+      "Host.Aggregator": "Warning",
+      "Microsoft": "Warning"
+    }
+  }
+}
+  

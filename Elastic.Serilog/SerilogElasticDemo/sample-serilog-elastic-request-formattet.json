@@ -1,0 +1,35 @@
+{
+    "index":{
+        "_type":"_doc","_index":"logstash-2022.04.20"
+    }
+}
+{
+    "@timestamp":"2022-04-20T13:09:20.9295008+02:00",
+    "level":"Information",
+    "messageTemplate":"Something cool happended for {messagetype} in {service} with flowId: {flowid}",
+    "message":"Something cool happended for \"ARIBA_PO\" in \"AITestConfigs.SerilogTest.SerilogDemo\" with flowId: db16f2e5-3bf5-4093-822f-d789c789c82b",
+    "fields":{
+      "messagetype": "ARIBA_PO",
+      "service": "serilogdemo.elastic.ElasticSerilogDemo",
+      "flowid": "28b68af9-a4e9-4fca-b578-4ea129bc9f29",
+      "SourceContext": "serilogdemo.elastic.ElasticSerilogDemo",
+      "application": "mikes serilog supah demo",
+      "module": "serilogdemo.elastic.ElasticSerilogDemo",
+      "senderid": "mike",
+      "receiverid": "glentoft",
+      "primarymessageid": "123",
+      "correlationid": "a5925cc1-5aed-4bf5-a077-5820d8377daa",
+      "Category": "Function.ElasticSerilogDemo",
+      "LogLevel": "Information",
+      "MS_FunctionInvocationId": "d206eadc-e3c3-4c4c-bcc2-e05deaab651f",
+      "MS_FunctionName": "ElasticSerilogDemo",
+      "MS_Event": "FunctionStart",
+      "MS_HostInstanceId": "00000000-0000-0000-0000-000000000000",
+      "MS_TriggerDetails": null,
+      "MS_HttpRequest": "Microsoft.AspNetCore.Http.DefaultHttpRequest",
+      "Environment": "DEV"
+    }
+}
+
+
+   

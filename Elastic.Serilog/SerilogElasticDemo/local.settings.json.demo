@@ -1,0 +1,15 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet",
+    "APPINSIGHTS_INSTRUMENTATIONKEY": "****************",
+    "ELASTIC_PROXY_URL": "http://localhost:7071/api/elasticproxy",
+    "ELASTIC_URL": "https://pre-es.****************.org:9200"
+  },
+  "logging": {
+    "logLevel": {
+      "Function.ElasticSerilogDemo": "Information" //This overrides the startup line
+    }
+  }
+}
