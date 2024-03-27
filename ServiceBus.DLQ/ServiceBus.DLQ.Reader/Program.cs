@@ -10,6 +10,7 @@ using System.Collections.Generic;
 using ConsoleSBReader.factories;
 using ConsoleSBReader.parsers;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore.Metadata.Conventions;
 
 namespace ConsoleSBReader
 {
@@ -21,6 +22,7 @@ namespace ConsoleSBReader
         private static IParser _parser;
         private static string _storageConnectionString;
         static ServiceBusClient _client;
+        static ServiceBusSender _sender;
         static CloudBlobContainer _storageContainer;
 
         private static CloudStorageAccount _storageAccount = null;
@@ -33,10 +35,13 @@ namespace ConsoleSBReader
         private static string _filePath;
         private static bool _useFileStorage = true; 
         private static bool _isInteractive = false;
+        private static bool _persistFiles = false;
+        private static bool _repostToQueue = false;
         private static int counter=0;
         private static int prefetchCount = 0;
         private static readonly object lockObject = new object();
         private static bool  _emulatorMode = true;
+        private static List<Task> messageList = new List<Task>();
 
         private static ACTION _actionBeforeWrite = ACTION.NOTHING;
 
@@ -54,20 +59,46 @@ namespace ConsoleSBReader
         {
             string body = args.Message.Body.ToString();
 
-            IDictionary<string, string> dic = new Dictionary<string, string>();
+            IDictionary<string, object> dic = new Dictionary<string, object>();
             foreach (KeyValuePair<string, object> vp in args.Message.ApplicationProperties)
-                dic.Add(new KeyValuePair<string, string>(vp.Key, vp.Value.ToString()));
+                dic.Add(new KeyValuePair<string, object>(vp.Key, vp.Value.ToString()));
 
             string Counter = GetIncreaseCounter().ToString().PadLeft(6, '0');
             Console.WriteLine($"Received [{Counter}]: {args.Message.MessageId}");
 
-            //Save the file
-            await Savefile(args.Message.EnqueuedTime.ToString("yyyyMMddTHHmmss") + "-" + args.Message.MessageId + ".txt", body, dic);
-            Console.WriteLine($"Saved [{Counter}]: {args.Message.MessageId}");
-            // complete the message. messages is deleted from the queue. 
+            if (_repostToQueue)
+            {
+                Console.WriteLine($"Reposting [{Counter}]: {args.Message.MessageId} back to " + _queue);
+                ServiceBusMessage msg = new ServiceBusMessage();
 
+                if (_actionBeforeWrite == ACTION.BASE64_DECODE)
+                    msg.Body = new BinaryData(Convert.FromBase64String(body));
+                else
+                    msg.Body = new BinaryData(System.Text.Encoding.UTF8.GetBytes(body));
+
+                foreach (KeyValuePair<string, object> prop in dic)
+                    msg.ApplicationProperties.Add(prop.Key, prop.Value.ToString());
+
+                Task t = _sender.SendMessageAsync(msg);
+                messageList.Add(t);
+            }
+
+            //Save the file
+            if (_persistFiles)
+            {
+                await Savefile(args.Message.EnqueuedTime.ToString("yyyyMMddTHHmmss") + "-" + args.Message.MessageId + ".txt", body, dic);
+                Console.WriteLine($"Saved [{Counter}]: {args.Message.MessageId} to " + _filePath);
+            }
+            
+            // complete the message. messages is deleted from the queue. 
             if (!_emulatorMode)
                 await args.CompleteMessageAsync(args.Message);
+        }
+
+        private async Task SendAndComplete (ServiceBusMessage messageToSend, ProcessMessageEventArgs args)
+        {
+            await _sender.SendMessageAsync(messageToSend);
+            await args.CompleteMessageAsync(args.Message);
         }
             
         private static int GetIncreaseCounter()
@@ -80,7 +111,7 @@ namespace ConsoleSBReader
             return counter;
         }
 
-        private static async Task Savefile(string filename, string content, IDictionary<string, string> dic)
+        private static async Task Savefile(string filename, string content, IDictionary<string, object> dic)
         {
             if(_useFileStorage)
             {
@@ -92,7 +123,7 @@ namespace ConsoleSBReader
             }
         }
 
-        private static async Task SaveLocalFile(string filename, string content, IDictionary<string, string> dic)
+        private static async Task SaveLocalFile(string filename, string content, IDictionary<string, object> dic)
         {
             StreamWriter writer = new StreamWriter(GetCompleteFilePath(filename) + ".txt");
 
@@ -116,15 +147,15 @@ namespace ConsoleSBReader
                 return _filePath + "\\" + filename;
         }
 
-        private static async Task SaveFileToStorage(string fileName, string content, IDictionary<string, string> dic)
+        private static async Task SaveFileToStorage(string fileName, string content, IDictionary<string, object> dic)
         {
             if (_parser != null)
                 content = _parser.Parse(content);
 
              await _storageContainer.GetBlockBlobReference(fileName + ".txt").UploadTextAsync(content);
 
-            foreach (KeyValuePair<string, string> vp in dic)
-                _storageContainer.GetBlockBlobReference(fileName + ".txt").Metadata.Add(vp.Key, vp.Value);
+            foreach (KeyValuePair<string, object> vp in dic)
+                _storageContainer.GetBlockBlobReference(fileName + ".txt").Metadata.Add(vp.Key, vp.Value.ToString());
 
             _storageContainer.GetBlockBlobReference(fileName + ".txt").SetMetadata();
         }
@@ -143,9 +174,16 @@ namespace ConsoleSBReader
                 ReadInputParameters(args);
 
                 if (!_clearDlq)
-                    await ReadFromQueue();
+                {
+                    Task t = ReadFromQueue();
+                    messageList.Add(t);
+                }
                 else
-                    ClearQueueOptions();
+                {
+                    Task t = ClearQueueOptions();
+                    messageList.Add(t);
+                }
+                    
 
             }
             catch (Exception ex)
@@ -155,11 +193,17 @@ namespace ConsoleSBReader
             }
             finally
             {
+                Console.WriteLine($"Waiting for {messageList.Count} tasks to complete...");
+                await Task.WhenAll(messageList);
+
                 if(processor != null)
                     await processor.DisposeAsync();
 
                 if(_client != null)
                     await _client.DisposeAsync();
+
+                if(_sender != null) 
+                    await _sender.DisposeAsync();
             }
         }
 
@@ -259,11 +303,13 @@ namespace ConsoleSBReader
         private static void InteractiveInput()
         {
             Write("Interactive mode selected", true);
-            _clearDlq = ReaBooleanInput("Clear DLQ? [false] <enter to skip>: ", new string[] {"true", "false"}, false, true);
             _queue = ReadInput("Queue name: ");
+            _clearDlq = ReadBooleanInput("Clear DLQ? [false] <enter to skip>: ", new string[] {"true", "false"}, false, true);
             if (_clearDlq)
                 return;
 
+            _repostToQueue = ReadBooleanInput("Repost message to queue? [false] <enter to skip>: ", new string[] { "true", "false" }, false, true);
+            _persistFiles = ReadBooleanInput("Persist messages? [false] <enter to skip>: ", new string[] { "true", "false" }, false, true);
             _parserName = ReadInput("Parser name [goh] <enter to skip>: ");
             prefetchCount = ReadInputInt("Prefetch count [provide 0 use default setting]: ", 0);
             string base64EncodeDecode = ReadInput("Base64 encode/decode [enter to skip]: ", new string[] {"encode", "decode"}, true);
@@ -278,7 +324,9 @@ namespace ConsoleSBReader
             }
 
             ReadEmulatorInput();
-            ReadStorageInput();
+
+            if(_persistFiles)
+                ReadStorageInput();
         }
 
         private static void ReadEmulatorInput()
@@ -367,7 +415,7 @@ namespace ConsoleSBReader
             return input;
         }
 
-        public static bool ReaBooleanInput(string text, string[] validValues, bool defaultValue, bool enterToSkip)
+        public static bool ReadBooleanInput(string text, string[] validValues, bool defaultValue, bool enterToSkip)
         {
             string input = "";
 
@@ -485,7 +533,16 @@ namespace ConsoleSBReader
                     switch(parameters[i])
                 {
                     case "-purge":
-                        _clearDlq = true; 
+                        _clearDlq = true;
+                        break;
+                    case "-persist":
+                        _persistFiles = true;
+                        break;
+                    case "-interactive":
+                        _isInteractive = true;
+                        break;
+                    case "-repost":
+                        _isInteractive = true;
                         break;
                     case "-f":
                         _filePath = GetParamValue(parameters, i);
@@ -511,9 +568,6 @@ namespace ConsoleSBReader
                     case "-e":
                         _useFileStorage = bool.Parse(GetParamValue(parameters, i));
                         i++;
-                        break;
-                    case "-interactive":
-                        _isInteractive = true;
                         break;
                 }
             }
@@ -560,15 +614,17 @@ namespace ConsoleSBReader
         private static void Usage()
         {
             Write("Usage:", true);
-            Write("  -x <parser>             (name of the parser to use)", true);
-            Write("  -q <quename>            (name of the service bus queue)", true);
             Write("  -purge                  (purge the queue)", true);
+            Write("  -persist                (Persist on local fileshare or a blob storage)", true);
+            Write("  -q <quename>            (name of the service bus queue)", true);
+            Write("  -x <parser>             (name of the parser to use)", true);
             Write("  -c <blob container>     (name of blob container, overrides -f)", true);
             Write("  -f <absolute file path> (path to where files will be stored)", true);
             Write("  -e <true | false>       (emulator mode, default=true)", true);
             Write("  -p <number>             (prefetch count)", true);
             Write("  -b <encode | decode>    (base64 encode/decode before write)", true);
             Write("  -interactive            (will require you to input parameters)", true);
+            Write("  -repost                 (will add them back to queue", true);
             Write("  ...no parameters at all will enforce interactive mode", true);
             Write("", true);
         }
@@ -614,6 +670,8 @@ namespace ConsoleSBReader
         {
             Write("Creating Service Bus Client...", true);
             _client = new ServiceBusClient(_serviceBusConnectionString);
+            if(_repostToQueue)
+                _sender = _client.CreateSender(_queue);
         }
 
         private static async Task CreateClearQueueProcessor()
