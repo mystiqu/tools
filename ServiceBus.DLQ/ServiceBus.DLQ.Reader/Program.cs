@@ -297,7 +297,11 @@ namespace ConsoleSBReader
             if (!_useFileStorage)
                 CreateBlobStorage(_container);
             else
-                CreateFileStorage(_filePath);
+            {
+                if(!string.IsNullOrEmpty(_filePath))
+                    CreateFileStorage(_filePath);
+            }
+                
         }
 
         private static void InteractiveInput()
