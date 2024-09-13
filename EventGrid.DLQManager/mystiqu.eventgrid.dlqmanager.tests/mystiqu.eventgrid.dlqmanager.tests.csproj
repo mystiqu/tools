@@ -15,7 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\mystiqu.eventgrid.dlqmanager.domain\mystiqu.eventgrid.dlqmanager.domain.csproj" />
+    <ProjectReference Include="..\mystiqu.eventgrid.dlqmanager.app\mystiqu.eventgrid.dlqmanager.app.csproj" />
     <ProjectReference Include="..\mystiqu.eventgrid.dlqmanager\mystiqu.eventgrid.dlqmanager.csproj" />
   </ItemGroup>
 
