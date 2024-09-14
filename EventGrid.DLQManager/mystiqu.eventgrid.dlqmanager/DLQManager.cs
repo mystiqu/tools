@@ -6,7 +6,8 @@ using Azure.Identity;
 using System.Text.Json.Nodes;
 using mystiqu.eventgrid.dlqmanager.domain;
 using mystiqu.eventgrid.dlqmanager.domain.utilities;
-using System.Reflection.Metadata;
+using Azure.Messaging.ServiceBus;
+using mystiqu.eventgrid.dlqmanager;
 
 namespace mystiqu.eventgrid.dlqmanager;
 
@@ -64,10 +65,10 @@ public class DLQManager : IDLQManager
 
         //If in debug mode, just use plain connection strings
         //If not, check the _azureCredential and use that as the first options - otherwizse sas keys
-        #if DEBUG
-            _blobServiceClient = new BlobServiceClient(_blobConnectionString);
-            _eventGridPublisherClient = new EventGridPublisherClient(new Uri(_eventGridConnectionString), new AzureKeyCredential(_eventgridKey));
-        #else
+#if DEBUG
+        _blobServiceClient = new BlobServiceClient(_blobConnectionString);
+        _eventGridPublisherClient = new EventGridPublisherClient(new Uri(_eventGridConnectionString), new AzureKeyCredential(_eventgridKey));
+#else
             if(_azureCredential != null) {
                 _eventGridPublisherClient = new EventGridPublisherClient(new Uri(_eventGridConnectionString), _azureCredential);
                 _blobServiceClient = new BlobServiceClient(new Uri(_blobConnectionString), _azureCredential);
@@ -77,7 +78,7 @@ public class DLQManager : IDLQManager
                 _blobServiceClient = new BlobServiceClient(_blobConnectionString);
                 _eventGridPublisherClient = new EventGridPublisherClient(new Uri(_eventGridConnectionString), new AzureKeyCredential(_eventgridKey));
             }
-        #endif
+#endif
 
         _blobContainerClient = _blobServiceClient.GetBlobContainerClient(_deadlettercontainer);
 
@@ -136,11 +137,12 @@ public class DLQManager : IDLQManager
             directoryNames = new List<string>();
 
         Pageable<BlobHierarchyItem> items = _blobContainerClient.GetBlobsByHierarchy(BlobTraits.None, BlobStates.None, "/", _baseFolder);
+
         foreach (BlobHierarchyItem blobHierarchyItem in items)
         {
             if (blobHierarchyItem.IsPrefix && blobHierarchyItem.Prefix.TrimEnd('/').Split("/").Count() < maxDepth)
             {
-                        ListDeadletterDateFolders(blobHierarchyItem.Prefix, directoryNames, maxDepth);
+                ListDeadletterDateFolders(blobHierarchyItem.Prefix, directoryNames, maxDepth);
             }
             else
             {
@@ -167,7 +169,7 @@ public class DLQManager : IDLQManager
     /// <param name="blobPage">Blob page</param>
     /// <param name="page">The page within the blob page, for proper paging</param>
     /// <param name="blobPage">Page size, used for paging - e.g. fetch 100 items at a time</param>
-    /// <param name="invalidFilers">If a blob payload contain any of these values, the blob is ignored</param>
+    /// <param name="invalidFilters">If a blob payload contain any of these values, the blob is ignored</param>
     /// <returns>List of downloaded blobs</returns>
     public List<DownloadedBlob> DownloadBlobs(Page<BlobItem> blobPage, int page, int pageSize, string[] invalidFilters)
     {
@@ -178,11 +180,11 @@ public class DLQManager : IDLQManager
         if (page == 0)
             page = 1;
 
-        foreach (BlobItem blob in blobPage.Values.Skip(page--*pageSize))
+        foreach (BlobItem blob in blobPage.Values.Skip(page-- * pageSize))
         {
             count++;
 
-            DownloadedBlob downloadedBlob = new DownloadedBlob();   
+            DownloadedBlob downloadedBlob = new DownloadedBlob();
             if (blob.Deleted)
             {
                 continue;
@@ -191,55 +193,6 @@ public class DLQManager : IDLQManager
             blobClient = _blobContainerClient.GetBlobClient(blob.Name);
             downloadedBlob = DownloadBlob(blob, blobClient, invalidFilters);
             downloadedBlobs.Add(downloadedBlob);
-            
-            #region old code
-            //using (MemoryStream memoryStream = new MemoryStream())
-            //{
-            //    try
-            //    {
-            //        blobClient.DownloadTo(memoryStream);
-            //        payload = System.Text.Encoding.UTF8.GetString(memoryStream.ToArray());
-            //        downloadedBlob.Payload = payload; 
-            //        downloadedBlob.FileName = blob.Name;
-
-            //        downloadedBlobs.Add(downloadedBlob);
-
-            //        //Check for crappy json
-            //        for (int j = 0; j < invalidFilers.Length; j++)
-            //        {
-            //            if (payload.Contains(invalidFilers[j]))
-            //            {
-            //                downloadedBlob.Error = "Invalid json, deleting blob directly";
-            //                blobClient = _blobContainerClient.GetBlobClient(blob.Name);
-
-            //                try
-            //                {
-            //                    if (blobClient.Exists())
-            //                    {
-            //                        Response r = blobClient.Delete(DeleteSnapshotsOption.IncludeSnapshots);
-            //                        if (r.IsError)
-            //                        {
-            //                        }
-            //                    }
-            //                }
-            //                catch (Exception failedEx)
-            //                {
-            //                    SendCallback(PROCESS_TYPE.DOWNLOAD, blob.Name, failedEx);
-            //                    downloadedBlob.Error += Environment.NewLine;
-            //                    downloadedBlob.Error += failedEx.ToString();
-            //                }
-
-            //                continue;
-            //            }
-            //        }
-            //    }
-            //    catch (Exception ex)
-            //    {
-            //        SendCallback(PROCESS_TYPE.DOWNLOAD, blob.Name, ex);
-            //        continue;
-            //    }
-            //}
-            #endregion
 
             SendCallback(PROCESS_TYPE.DOWNLOAD, blob.Name, null);
 
@@ -248,6 +201,65 @@ public class DLQManager : IDLQManager
         }
 
         return downloadedBlobs;
+    }
+
+    /// <summary>
+    /// Download all blobs in a given blob page
+    /// </summary>
+    /// <param name="blobPage">Blob page</param>
+    /// <param name="page">The page within the blob page, for proper paging</param>
+    /// <param name="blobPage">Page size, used for paging - e.g. fetch 100 items at a time</param>
+    /// <param name="directory">Save the downloaded blobs to this directory</param>
+    /// <param name="invalidFilters">If a blob payload contain any of these values, the blob is ignored</param>
+    /// <returns>List of downloaded blobs</returns>
+    public List<DownloadedBlob> DownloadBlobs(Page<BlobItem> blobPage, int page, int pageSize, string directory, string[] invalidFilters)
+    {
+        List<DownloadedBlob> downloadedBlobs = new List<DownloadedBlob>();
+        BlobClient blobClient;
+        string payload = string.Empty;
+        int count = 0;
+        if (page == 0)
+            page = 1;
+
+        foreach (BlobItem blob in blobPage.Values.Skip(page-- * pageSize))
+        {
+            count++;
+
+            DownloadedBlob downloadedBlob = new DownloadedBlob();
+            if (blob.Deleted)
+            {
+                continue;
+            }
+
+            blobClient = _blobContainerClient.GetBlobClient(blob.Name);
+            downloadedBlob = DownloadBlob(blob, blobClient, invalidFilters);
+            downloadedBlobs.Add(downloadedBlob);
+
+            SaveBlobToFile(payload, blob.Name, directory);
+
+            SendCallback(PROCESS_TYPE.DOWNLOAD, blob.Name, null);
+
+            if (count == pageSize)
+                break;
+        }
+
+        return downloadedBlobs;
+    }
+
+    private void SaveBlobToFile(string payload, string blobFullName, string directory)
+    {
+        directory = directory.TrimEnd('/');
+        string file = directory + "/" + GetBlobName(blobFullName);
+
+        FileStream str = System.IO.File.Create(file);
+        byte[] data = System.Text.Encoding.UTF8.GetBytes(payload);
+        str.Write(data, 0, data.Length);
+        str.Close();
+    }
+
+    private string GetBlobName(string blobFullName)
+    {
+        return blobFullName.Substring(blobFullName.LastIndexOf('/') + 1);
     }
 
     /// <summary>
@@ -289,9 +301,14 @@ public class DLQManager : IDLQManager
             DeleteBlobs(blobs);
         }
 
-        return deadLetterEvents;    
+        return deadLetterEvents;
     }
-        
+
+    public List<ServiceBusMessage> PublishToServiceBus(List<DownloadedBlob> blobs, string serviceBusQueue, bool deleteBlobs = false)
+    {
+        throw new NotImplementedException();
+    }
+
     /// <summary>
     /// Deletes a list of downloaded blobs from storage
     /// </summary>
@@ -303,7 +320,7 @@ public class DLQManager : IDLQManager
         List<string> deletedBlobs = new List<string>();
         int count = 0;
 
-        foreach(DownloadedBlob blob in downloadedBlobs) 
+        foreach (DownloadedBlob blob in downloadedBlobs)
         {
             count++;
             blobClient = _blobContainerClient.GetBlobClient(blob.FileName);
@@ -369,10 +386,6 @@ public class DLQManager : IDLQManager
     {
         string data = ((JsonNode)evt.Data).ToJsonString();
         byte[] bData = System.Text.Encoding.UTF8.GetBytes(data);
-
-        FileStream str = System.IO.File.Create($"c:\\temp\\ce\\{evt.Id}.json");
-        str.Write(bData, 0, bData.Length);
-        str.Close();
 
         Azure.Messaging.CloudEvent ce = new Azure.Messaging.CloudEvent(evt.Source, evt.Type, evt.Data);
         ce.DataSchema = "";
